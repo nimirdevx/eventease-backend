@@ -1,2 +1,6 @@
 # Ignore files with sensitive credentials
 .env
+
+# Python bytecode
+__pycache__/
+*.pyc
