@@ -24,6 +24,16 @@ class Event(Base):
 
     organizer = relationship("User", back_populates="events")
 
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(100), unique=True, index=True)
+    registration_id = Column(Integer, ForeignKey("registrations.id"))
+
+    registration = relationship("Registration", back_populates="ticket")
+
+
 class Registration(Base):
     __tablename__ = "registrations"
 
@@ -33,7 +43,7 @@ class Registration(Base):
 
     user = relationship("User", back_populates="registrations")
     event = relationship("Event", back_populates="registrations")
-
+    ticket = relationship("Ticket", back_populates="registration", uselist=False)
 
 # Add these at the bottom of models.py
 from app.models import User, Event

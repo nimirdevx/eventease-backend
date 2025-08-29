@@ -46,7 +46,7 @@ def read_users_me(current_user = Depends(get_current_user)):
 @router.get("/me/registrations")
 def get_my_registrations(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # ✅ simpler
+    current_user = Depends(get_current_user) 
 ):
     regs = (
         db.query(models.Registration)
@@ -59,3 +59,21 @@ def get_my_registrations(
         for reg in regs
     ]
     return {"registrations": events}
+
+# Get my tickets
+@router.get("/me/tickets")
+def get_my_tickets(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    regs = db.query(models.Registration).filter_by(user_id=current_user.id).all()
+
+    tickets = []
+    for reg in regs:
+        if reg.ticket:
+            tickets.append({
+                "event": reg.event.title,
+                "ticket_code": reg.ticket.code
+            })
+
+    return {"tickets": tickets}

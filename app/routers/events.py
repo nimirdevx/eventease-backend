@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from app import schemas, crud, models
 from app.database import get_db
 from app.routers.auth import get_current_user
-
+import uuid
+import qrcode
+import os 
 router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.post("/create", response_model=schemas.EventResponse)
@@ -73,7 +75,31 @@ def register_event(
     db.add(reg)
     db.commit()
     db.refresh(reg)
-    return {"message": f"Successfully registered for {event.title}!"}
+    
+   # Create a ticket for the registration
+    ticket = models.Ticket(code=str(uuid.uuid4()), registration_id=reg.id)
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+    
+    # Create tickets directory if it doesn't exist
+    tickets_dir = "tickets"
+    os.makedirs(tickets_dir, exist_ok=True)
+
+    # Define filename first
+    filename = f"{ticket.code}.png"
+    filepath = os.path.join(tickets_dir, filename)
+
+    # Generate and save QR code
+    img = qrcode.make(ticket.code)
+    img.save(filepath)
+
+    # Now safely build the URL
+    ticket_url = f"http://localhost:8000/tickets/{filename}"
+    
+    return {"message": f"Successfully registered for {event.title}!",
+            "ticket_code": ticket.code,
+             "ticket_url": ticket_url}
 
 
 @router.get("/{event_id}/attendees")
@@ -91,7 +117,8 @@ def get_event_attendees(
         raise HTTPException(status_code=403, detail="Not authorized to view attendees")
 
     attendees = [
-        {"id": reg.user.id, "name": reg.user.name, "email": reg.user.email}
-        for reg in event.registrations
-    ]
+    {"id": reg.user.id, "name": reg.user.name, "email": reg.user.email, "ticket": reg.ticket.code if reg.ticket else None}
+    for reg in event.registrations
+                ]
+
     return {"event": event.title, "attendees": attendees}
