@@ -23,3 +23,25 @@ class Event(Base):
     organizer_id = Column(Integer, ForeignKey("users.id"))  # link to User
 
     organizer = relationship("User", back_populates="events")
+
+class Registration(Base):
+    __tablename__ = "registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    event_id = Column(Integer, ForeignKey("events.id"))
+
+    user = relationship("User", back_populates="registrations")
+    event = relationship("Event", back_populates="registrations")
+
+
+# Add these at the bottom of models.py
+from app.models import User, Event
+
+User.registrations = relationship(
+    "Registration", back_populates="user", cascade="all, delete-orphan"
+)
+
+Event.registrations = relationship(
+    "Registration", back_populates="event", cascade="all, delete-orphan"
+)

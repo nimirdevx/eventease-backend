@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app import schemas, crud
+from app import schemas, crud ,  models 
 from app.auth_utils import verify_password, create_access_token , SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
 from fastapi.security import OAuth2PasswordBearer
@@ -42,3 +42,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 @router.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user = Depends(get_current_user)):
     return current_user
+
+@router.get("/me/registrations")
+def get_my_registrations(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)  # ✅ simpler
+):
+    regs = (
+        db.query(models.Registration)
+        .filter(models.Registration.user_id == current_user.id)
+        .all()
+    )
+
+    events = [
+        {"id": reg.event.id, "title": reg.event.title, "description": reg.event.description}
+        for reg in regs
+    ]
+    return {"registrations": events}

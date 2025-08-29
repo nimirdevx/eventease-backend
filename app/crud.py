@@ -31,3 +31,31 @@ def get_events(db: Session):
 
 def get_event_by_id(db: Session, event_id: int):
     return db.query(models.Event).filter(models.Event.id == event_id).first()
+
+
+def update_event(db: Session, event_id: int, event_data, user_id: int):
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        return None
+    if event.organizer_id != user_id:
+        return "forbidden"
+    
+    event.title = event_data.title
+    event.description = event_data.description
+    event.date = event_data.date
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def delete_event(db: Session, event_id: int, user_id: int):
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        return None
+    if event.organizer_id != user_id:
+        return "forbidden"
+    
+    db.delete(event)
+    db.commit()
+    return event
+
