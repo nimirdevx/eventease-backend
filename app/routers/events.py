@@ -12,12 +12,25 @@ router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.post("", response_model=schemas.EventResponse)
 def create_event(event: schemas.EventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "organizer":
+    if current_user.role not in ["organizer", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only organizers can create events"
+            detail="Only organizers or admins can create events"
         )
-    return crud.create_event(db, event.title, event.description, event.date, current_user.id)
+    
+    # Create the event
+    new_event = crud.create_event(db, event.title, event.description, event.date, current_user.id)
+    
+    # Create notification for the organizer
+    crud.create_notification(
+        db=db,
+        title="Event Created Successfully",
+        message=f"Your event '{new_event.title}' has been created successfully!",
+        user_id=current_user.id,
+        event_id=new_event.id
+    )
+    
+    return new_event
 
 @router.get("", response_model=List[schemas.EventResponse])
 def list_events(
@@ -55,6 +68,16 @@ def update_event(event_id: int, event_data: schemas.EventCreate,
         raise HTTPException(status_code=404, detail="Event not found")
     if result == "forbidden":
         raise HTTPException(status_code=403, detail="Not authorized to update this event")
+    
+    # Notify all registered participants about event update
+    crud.notify_event_participants(
+        db=db,
+        event_id=event_id,
+        title="Event Updated",
+        message=f"The event '{result.title}' has been updated. Please check the latest details.",
+        exclude_user_id=current_user.id
+    )
+    
     return result
 
 
@@ -114,6 +137,25 @@ def register_event(
     # Now safely build the URL
     ticket_url = f"http://localhost:8000/tickets/{filename}"
     
+    # Create notifications
+    # 1. Notify the user about successful registration
+    crud.create_notification(
+        db=db,
+        title="Registration Successful",
+        message=f"You have successfully registered for '{event.title}'. Your ticket code is {ticket.code}",
+        user_id=current_user.id,
+        event_id=event_id
+    )
+    
+    # 2. Notify the event organizer about new registration
+    crud.create_notification(
+        db=db,
+        title="New Registration",
+        message=f"{current_user.name} has registered for your event '{event.title}'",
+        user_id=event.organizer_id,
+        event_id=event_id
+    )
+    
     return {"message": f"Successfully registered for {event.title}!",
             "ticket_code": ticket.code,
              "ticket_url": ticket_url}
@@ -147,7 +189,30 @@ def cancel_registration(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
+    # Get event for notification
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    
     success = crud.cancel_registration(db, current_user.id, event_id)
     if not success:
         raise HTTPException(status_code=404, detail="Registration not found")
+    
+    # Notify user about cancellation
+    if event:
+        crud.create_notification(
+            db=db,
+            title="Registration Cancelled",
+            message=f"Your registration for '{event.title}' has been cancelled",
+            user_id=current_user.id,
+            event_id=event_id
+        )
+        
+        # Notify organizer about cancellation
+        crud.create_notification(
+            db=db,
+            title="Registration Cancelled",
+            message=f"{current_user.name} has cancelled their registration for '{event.title}'",
+            user_id=event.organizer_id,
+            event_id=event_id
+        )
+    
     return {"message": "Registration cancelled"}

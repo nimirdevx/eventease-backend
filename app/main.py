@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import auth, events , admin
+from app.routers import auth, events, admin, interactions
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -19,4 +19,5 @@ app.mount("/tickets", StaticFiles(directory="tickets"), name="tickets")
 app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(admin.router)
+app.include_router(interactions.router)
 

@@ -10,7 +10,17 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    return crud.create_user(db, user.name, user.email, user.password, user.role)
+    new_user = crud.create_user(db, user.name, user.email, user.password, user.role)
+    
+    # Create welcome notification for new user
+    crud.create_notification(
+        db=db,
+        title="Welcome to EventEase!",
+        message=f"Hello {new_user.name}! Welcome to EventEase. You can now explore and register for exciting events.",
+        user_id=new_user.id
+    )
+    
+    return new_user
 
 
 @router.post("/login", response_model=schemas.Token)

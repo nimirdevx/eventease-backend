@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import List
 
 class UserCreate(BaseModel):
     name: str
@@ -14,7 +15,7 @@ class UserResponse(BaseModel):
     role: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         
         
 class Token(BaseModel):
@@ -39,7 +40,53 @@ class EventResponse(BaseModel):
     organizer_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
         
 class EventDetail(EventResponse):
     organizer_id: int
+    comments: List['CommentResponse'] = []
+
+    class Config:
+        from_attributes = True
+
+
+# Comment schemas
+class CommentCreate(BaseModel):
+    content: str
+
+
+class CommentResponse(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    user_id: int
+    event_id: int
+    user: UserResponse
+
+    class Config:
+        from_attributes = True
+
+
+# Notification schemas
+class NotificationCreate(BaseModel):
+    title: str
+    message: str
+    user_id: int
+    event_id: int | None = None
+
+
+class NotificationResponse(BaseModel):
+    id: int
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+    user_id: int
+    event_id: int | None
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationUpdate(BaseModel):
+    is_read: bool

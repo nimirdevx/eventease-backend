@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from .database import Base
 from sqlalchemy.orm import relationship
 import datetime
@@ -55,3 +55,39 @@ User.registrations = relationship(
 Event.registrations = relationship(
     "Registration", back_populates="event", cascade="all, delete-orphan"
 )
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    event_id = Column(Integer, ForeignKey("events.id"))
+
+    user = relationship("User", back_populates="comments")
+    event = relationship("Event", back_populates="comments")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True)  # Optional event reference
+
+    user = relationship("User", back_populates="notifications")
+    event = relationship("Event", back_populates="notifications")
+
+
+# Add relationships to existing models
+User.comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
+User.notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+
+Event.comments = relationship("Comment", back_populates="event", cascade="all, delete-orphan")
+Event.notifications = relationship("Notification", back_populates="event", cascade="all, delete-orphan")
