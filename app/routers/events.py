@@ -32,6 +32,11 @@ def create_event(event: schemas.EventCreate, db: Session = Depends(get_db), curr
     
     return new_event
 
+@router.get("/my", response_model=List[schemas.EventResponse])
+def my_events(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """Get events created by the current user"""
+    return db.query(models.Event).filter(models.Event.organizer_id == current_user.id).all()
+
 @router.get("", response_model=List[schemas.EventResponse])
 def list_events(
     search: str = None,
@@ -55,8 +60,6 @@ def past_events(db: Session = Depends(get_db)):
 @router.get("/{event_id}", response_model=schemas.EventDetail)
 def get_event(event_id: int, db: Session = Depends(get_db)):
     event = crud.get_event_by_id(db, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
     return event
 
 @router.put("/{event_id}", response_model=schemas.EventResponse)
@@ -64,10 +67,6 @@ def update_event(event_id: int, event_data: schemas.EventCreate,
                  db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     result = crud.update_event(db, event_id, event_data, current_user.id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Event not found")
-    if result == "forbidden":
-        raise HTTPException(status_code=403, detail="Not authorized to update this event")
     
     # Notify all registered participants about event update
     crud.notify_event_participants(
@@ -86,10 +85,6 @@ def delete_event(event_id: int,
                  db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     result = crud.delete_event(db, event_id, current_user.id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Event not found")
-    if result == "forbidden":
-        raise HTTPException(status_code=403, detail="Not authorized to delete this event")
     return {"detail": "Event deleted successfully"}
 
 
@@ -99,25 +94,12 @@ def register_event(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    event = db.query(models.Event).filter(models.Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    existing = (
-        db.query(models.Registration)
-        .filter_by(user_id=current_user.id, event_id=event_id)
-        .first()
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="Already registered for this event")
-
-    reg = models.Registration(user_id=current_user.id, event_id=event_id)
-    db.add(reg)
-    db.commit()
-    db.refresh(reg)
+    # Use the new CRUD function for registration
+    registration = crud.register_for_event(db, current_user.id, event_id)
+    event = crud.get_event_by_id(db, event_id)
     
-   # Create a ticket for the registration
-    ticket = models.Ticket(code=str(uuid.uuid4()), registration_id=reg.id)
+    # Create a ticket for the registration
+    ticket = models.Ticket(code=str(uuid.uuid4()), registration_id=registration.id)
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
@@ -190,27 +172,24 @@ def cancel_registration(
     current_user: models.User = Depends(get_current_user)
 ):
     # Get event for notification
-    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    event = crud.get_event_by_id(db, event_id)
     
-    success = crud.cancel_registration(db, current_user.id, event_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Registration not found")
+    crud.cancel_registration(db, current_user.id, event_id)
     
     # Notify user about cancellation
-    if event:
-        crud.create_notification(
-            db=db,
-            title="Registration Cancelled",
-            message=f"Your registration for '{event.title}' has been cancelled",
-            user_id=current_user.id,
-            event_id=event_id
-        )
-        
-        # Notify organizer about cancellation
-        crud.create_notification(
-            db=db,
-            title="Registration Cancelled",
-            message=f"{current_user.name} has cancelled their registration for '{event.title}'",
+    crud.create_notification(
+        db=db,
+        title="Registration Cancelled",
+        message=f"Your registration for '{event.title}' has been cancelled",
+        user_id=current_user.id,
+        event_id=event_id
+    )
+    
+    # Notify organizer about cancellation
+    crud.create_notification(
+        db=db,
+        title="Registration Cancelled",
+        message=f"{current_user.name} has cancelled their registration for '{event.title}'",
             user_id=event.organizer_id,
             event_id=event_id
         )
