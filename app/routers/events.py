@@ -3,12 +3,14 @@ from sqlalchemy.orm import Session
 from app import schemas, crud, models
 from app.database import get_db
 from app.routers.auth import get_current_user
+from typing import List
+
 import uuid
 import qrcode
 import os 
 router = APIRouter(prefix="/events", tags=["Events"])
 
-@router.post("/create", response_model=schemas.EventResponse)
+@router.post("", response_model=schemas.EventResponse)
 def create_event(event: schemas.EventCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "organizer":
         raise HTTPException(
@@ -17,9 +19,24 @@ def create_event(event: schemas.EventCreate, db: Session = Depends(get_db), curr
         )
     return crud.create_event(db, event.title, event.description, event.date, current_user.id)
 
-@router.get("/", response_model=list[schemas.EventResponse])
-def list_events(db: Session = Depends(get_db)):
-    return crud.get_events(db)
+@router.get("", response_model=List[schemas.EventResponse])
+def list_events(
+    search: str = None,
+    date: str = None,
+    skip: int = 0,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    return crud.search_events(db, search, date, skip, limit)
+
+
+@router.get("/upcoming", response_model=List[schemas.EventResponse])
+def upcoming_events(db: Session = Depends(get_db)):
+    return crud.get_upcoming_events(db)
+
+@router.get("/past", response_model=List[schemas.EventResponse])
+def past_events(db: Session = Depends(get_db)):
+    return crud.get_past_events(db)
 
 
 @router.get("/{event_id}", response_model=schemas.EventDetail)
@@ -122,3 +139,15 @@ def get_event_attendees(
                 ]
 
     return {"event": event.title, "attendees": attendees}
+
+
+@router.delete("/{event_id}/register")
+def cancel_registration(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    success = crud.cancel_registration(db, current_user.id, event_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Registration not found")
+    return {"message": "Registration cancelled"}

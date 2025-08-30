@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from passlib.hash import bcrypt
 from . import models
+from datetime import datetime, timedelta
+from sqlalchemy import and_
 
 def create_user(db: Session, name: str, email: str, password: str, role: str = "attendee"):
     hashed_pw = bcrypt.hash(password)
@@ -58,4 +60,42 @@ def delete_event(db: Session, event_id: int, user_id: int):
     db.delete(event)
     db.commit()
     return event
+
+
+def cancel_registration(db: Session, user_id: int, event_id: int):
+    reg = db.query(models.Registration).filter(
+        models.Registration.user_id == user_id,
+        models.Registration.event_id == event_id
+    ).first()
+    if reg:
+        db.delete(reg)
+        db.commit()
+        return True
+    return False
+
+def search_events(db: Session, search: str = None, date: str = None, skip: int = 0, limit: int = 10):
+    query = db.query(models.Event)
+    
+    if search:
+        query = query.filter(models.Event.description.ilike(f"%{search}%"))
+    
+    if date:
+        try:
+            # Parse input "YYYY-MM-DD" into start and end of that day
+            start = datetime.strptime(date, "%Y-%m-%d")
+            end = start + timedelta(days=1)
+            query = query.filter(and_(models.Event.date >= start, models.Event.date < end))
+        except ValueError:
+            pass  # Ignore invalid date format
+    
+    return query.offset(skip).limit(limit).all()
+
+
+def get_upcoming_events(db: Session):
+    now = datetime.now()
+    return db.query(models.Event).filter(models.Event.date >= now).all()
+
+def get_past_events(db: Session):
+    now = datetime.now()
+    return db.query(models.Event).filter(models.Event.date < now).all()
 
