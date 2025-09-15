@@ -10,3 +10,7 @@ __pycache__/
 
 # Markdown files
 *.md
+
+git rm -r --cached *.DS_Store
+git rm -r --cached alembic/.DS_Store
+git rm -r --cached app/.DS_Store.DS_Store
